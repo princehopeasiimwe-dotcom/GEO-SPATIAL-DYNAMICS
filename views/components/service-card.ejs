@@ -1,0 +1,10 @@
+<div class="card reveal">
+  <% if (service.image_path) { %>
+    <div class="card-media"><img src="<%= service.image_path %>" alt="<%= service.title %>"></div>
+  <% } %>
+  <div class="card-body">
+    <h3><%= service.title %></h3>
+    <p><%= service.summary %></p>
+    <a href="/services#<%= service.slug %>">Learn more &rarr;</a>
+  </div>
+</div>

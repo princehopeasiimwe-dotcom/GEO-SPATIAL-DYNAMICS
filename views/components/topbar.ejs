@@ -1,0 +1,11 @@
+<% const s = typeof settings !== 'undefined' && settings ? settings : {}; %>
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <span>Practical geospatial technology for Uganda and East Africa.</span>
+    <div class="topbar-links">
+      <% if (s.contact_phone) { %><a href="tel:<%= s.contact_phone.replace(/\s+/g,'') %>"><%= s.contact_phone %></a><% } %>
+      <% if (s.contact_email) { %><a href="mailto:<%= s.contact_email %>"><%= s.contact_email %></a><% } %>
+      <a href="/contact">Get in touch</a>
+    </div>
+  </div>
+</div>

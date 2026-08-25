@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard — GDL</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="admin-body">
+<div class="admin-wrap">
+  <div class="admin-top">
+    <h1>Content Manager</h1>
+    <form method="POST" action="/admin/logout"><button class="btn-outline">Log Out</button></form>
+  </div>
+
+  <section>
+    <h2>Branding</h2>
+    <% const logoUrl = settings.find(s => s.key === 'site_logo')?.value; %>
+    <form method="POST" action="/admin/branding/save" enctype="multipart/form-data" class="settings-form">
+      <label>Current logo</label>
+      <% if (logoUrl) { %>
+        <img src="<%= logoUrl %>" alt="" style="max-height:40px; display:block; margin-top:6px;">
+      <% } else { %>
+        <p style="color:rgba(237,232,221,0.5); font-size:0.85rem; margin-top:6px;">No logo uploaded - site shows text logo.</p>
+      <% } %>
+      <label>Upload new logo</label>
+      <input type="file" name="logo" accept="image/png, image/jpeg, image/webp">
+      <button type="submit" class="btn-primary">Save Logo</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>"Who We Are" Card Images (optional)</h2>
+<p style="color:rgba(237,232,221,0.5); font-size:0.85rem; margin-bottom:12px;">Leave any blank to keep that card's plain green background.</p>
+<% const wc = {}; settings.forEach(s => wc[s.key] = s.value); %>
+<form method="POST" action="/admin/word-cards/save" enctype="multipart/form-data" class="settings-form">
+  <% const cardFields = [
+    { field: 'tagline_image', key: 'word_card_1_image', label: 'Tagline card image' },
+    { field: 'about_image', key: 'word_card_2_image', label: 'About card image' },
+    { field: 'mission_image', key: 'word_card_3_image', label: 'Mission card image' },
+    { field: 'values_image', key: 'word_card_4_image', label: 'Core Values card image' }
+  ]; %>
+  <% cardFields.forEach(cf => { %>
+    <label><%= cf.label %></label>
+    <% if (wc[cf.key]) { %>
+      <img src="<%= wc[cf.key] %>" alt="" style="max-width:160px; display:block; margin:6px 0; border-radius:4px;">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-family:inherit; font-size:0.85rem; margin-top:4px;">
+        <input type="checkbox" name="<%= cf.field %>_remove" style="width:auto; margin:0;"> Remove this image
+      </label>
+    <% } else { %>
+      <p style="color:rgba(237,232,221,0.4); font-size:0.8rem; margin:4px 0;">No image set - showing plain green card.</p>
+    <% } %>
+    <input type="file" name="<%= cf.field %>" accept="image/png, image/jpeg, image/webp" style="margin-top:8px;">
+  <% }) %>
+  <button type="submit" class="btn-primary" style="margin-top:10px;">Save Card Images</button>
+</form>
+  </section>
+
+  <section>
+    <div class="admin-section-head">
+      <h2>Services</h2>
+      <a href="/admin/services/new" class="btn-primary">+ Add Service</a>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>Title</th><th>Slug</th><th></th></tr></thead>
+      <tbody>
+        <% services.forEach(s => { %>
+          <tr>
+            <td><%= s.title %></td>
+            <td><%= s.slug %></td>
+            <td class="admin-actions">
+              <a href="/admin/services/<%= s.id %>/edit">Edit</a>
+              <form method="POST" action="/admin/services/<%= s.id %>/delete" onsubmit="return confirm('Delete this service?');">
+                <button type="submit" class="link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="admin-section-head">
+      <h2>Homepage Slideshow</h2>
+      <a href="/admin/slides/new" class="btn-primary">+ Add Slide</a>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>Image</th><th>Caption</th><th></th></tr></thead>
+      <tbody>
+        <% slides.forEach(sl => { %>
+          <tr>
+            <td><img src="<%= sl.image_path %>" alt="" style="width:80px; height:50px; object-fit:cover; border-radius:2px;"></td>
+            <td><%= sl.caption %></td>
+            <td class="admin-actions">
+              <a href="/admin/slides/<%= sl.id %>/edit">Edit</a>
+              <form method="POST" action="/admin/slides/<%= sl.id %>/delete" onsubmit="return confirm('Delete this slide?');">
+                <button type="submit" class="link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (slides.length === 0) { %>
+          <tr><td colspan="3">No slides yet - the homepage will show a plain hero until you add one.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+<section>
+  <div class="admin-section-head">
+    <h2>Directors' Messages</h2>
+    <a href="/admin/founders/new" class="btn-primary">+ Add Director</a>
+  </div>
+  <table class="admin-table">
+    <thead><tr><th>Photo</th><th>Name</th><th>Title</th><th></th></tr></thead>
+    <tbody>
+      <% founders.forEach(fo => { %>
+        <tr>
+          <td><% if (fo.photo_path) { %><img src="<%= fo.photo_path %>" alt="" style="width:44px; height:44px; object-fit:cover; border-radius:50%;"><% } %></td>
+          <td><%= fo.name %></td>
+          <td><%= fo.title %></td>
+          <td class="admin-actions">
+            <a href="/admin/founders/<%= fo.id %>/edit">Edit</a>
+            <form method="POST" action="/admin/founders/<%= fo.id %>/delete" onsubmit="return confirm('Remove this director message?');">
+              <button type="submit" class="link-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (founders.length === 0) { %>
+        <tr><td colspan="4">No director messages added yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="admin-section-head">
+    <h2>Partners & Funders</h2>
+    <a href="/admin/partners/new" class="btn-primary">+ Add Partner</a>
+  </div>
+  <table class="admin-table">
+    <thead><tr><th>Logo</th><th>Name</th><th></th></tr></thead>
+    <tbody>
+      <% partners.forEach(p => { %>
+        <tr>
+          <td><% if (p.logo_path) { %><img src="<%= p.logo_path %>" alt="" style="width:60px; height:36px; object-fit:contain; background:#fff; border-radius:2px; padding:2px;"><% } else { %><em style="color:rgba(237,232,221,0.4); font-size:0.8rem;">text only</em><% } %></td>
+          <td><%= p.name %></td>
+          <td class="admin-actions">
+            <a href="/admin/partners/<%= p.id %>/edit">Edit</a>
+            <form method="POST" action="/admin/partners/<%= p.id %>/delete" onsubmit="return confirm('Remove this partner?');">
+              <button type="submit" class="link-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+  <section>
+    <div class="admin-section-head">
+      <h2>Stats Strip</h2>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>Value</th><th>Label</th><th></th></tr></thead>
+      <tbody>
+        <% stats.forEach(st => { %>
+          <tr>
+            <td><%= st.value %></td>
+            <td><%= st.label %></td>
+            <td class="admin-actions">
+              <form method="POST" action="/admin/stats/<%= st.id %>/delete" onsubmit="return confirm('Delete this stat?');">
+                <button type="submit" class="link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <form method="POST" action="/admin/stats/save" class="settings-form" style="margin-top:14px;">
+      <label>Value (e.g. 10+, 50+, 4.8/5)</label>
+      <input type="text" name="value" required>
+      <label>Label (e.g. Years in Operation)</label>
+      <input type="text" name="label" required>
+      <button type="submit" class="btn-primary">Add Stat</button>
+    </form>
+  </section>
+
+  <section>
+    <section>
+  <div class="admin-section-head">
+    <h2>Industries Served</h2>
+    <a href="/admin/industries/new" class="btn-primary">+ Add Industry</a>
+  </div>
+  <table class="admin-table">
+    <thead><tr><th>Image</th><th>Icon</th><th>Title</th><th></th></tr></thead>
+    <tbody>
+      <% industries.forEach(ind => { %>
+        <tr>
+          <td><% if (ind.image_path) { %><img src="<%= ind.image_path %>" alt="" style="width:60px; height:40px; object-fit:cover; border-radius:2px;"><% } %></td>
+          <td><%= ind.icon %></td>
+          <td><%= ind.title %></td>
+          <td class="admin-actions">
+            <a href="/admin/industries/<%= ind.id %>/edit">Edit</a>
+            <form method="POST" action="/admin/industries/<%= ind.id %>/delete" onsubmit="return confirm('Delete this industry?');">
+              <button type="submit" class="link-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (industries.length === 0) { %>
+        <tr><td colspan="4">No industries added yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</section>
+  </section>
+
+  <section>
+    <div class="admin-section-head">
+      <h2>Case Studies</h2>
+      <a href="/admin/case-studies/new" class="btn-primary">+ Add Case Study</a>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>Image</th><th>Title</th><th>Client</th><th></th></tr></thead>
+      <tbody>
+        <% caseStudies.forEach(cs => { %>
+          <tr>
+            <td><% if (cs.image_path) { %><img src="<%= cs.image_path %>" alt="" style="width:60px; height:40px; object-fit:cover; border-radius:2px;"><% } %></td>
+            <td><%= cs.title %></td>
+            <td><%= cs.client %></td>
+            <td class="admin-actions">
+              <a href="/admin/case-studies/<%= cs.id %>/edit">Edit</a>
+              <form method="POST" action="/admin/case-studies/<%= cs.id %>/delete" onsubmit="return confirm('Delete this case study?');">
+                <button type="submit" class="link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (caseStudies.length === 0) { %>
+          <tr><td colspan="4">No case studies yet.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="admin-section-head">
+      <h2>Our Team</h2>
+      <a href="/admin/team/new" class="btn-primary">+ Add Team Member</a>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>Photo</th><th>Name</th><th>Role</th><th></th></tr></thead>
+      <tbody>
+        <% team.forEach(m => { %>
+          <tr>
+            <td><% if (m.photo_path) { %><img src="<%= m.photo_path %>" alt="" style="width:44px; height:44px; object-fit:cover; border-radius:50%;"><% } %></td>
+            <td><%= m.name %></td>
+            <td><%= m.role %></td>
+            <td class="admin-actions">
+              <a href="/admin/team/<%= m.id %>/edit">Edit</a>
+              <form method="POST" action="/admin/team/<%= m.id %>/delete" onsubmit="return confirm('Remove this team member?');">
+                <button type="submit" class="link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (team.length === 0) { %>
+          <tr><td colspan="4">No team members added yet.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+  <section>
+  <div class="admin-section-head">
+    <h2>Software &amp; Equipment</h2>
+    <a href="/admin/products/new" class="btn-primary">+ Add Product</a>
+  </div>
+  <table class="admin-table">
+    <thead><tr><th>Image</th><th>Name</th><th>Price Info</th><th></th></tr></thead>
+    <tbody>
+      <% products.forEach(p => { %>
+        <tr>
+          <td><% if (p.image_path) { %><img src="<%= p.image_path %>" alt="" style="width:60px; height:40px; object-fit:cover; border-radius:2px;"><% } %></td>
+          <td><%= p.name %></td>
+          <td><%= p.price_info %></td>
+          <td class="admin-actions">
+            <a href="/admin/products/<%= p.id %>/edit">Edit</a>
+            <form method="POST" action="/admin/products/<%= p.id %>/delete" onsubmit="return confirm('Delete this product?');">
+              <button type="submit" class="link-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (products.length === 0) { %>
+        <tr><td colspan="4">No products added yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="admin-section-head">
+    <h2>Requests Inbox <span style="font-size:0.75rem; color:rgba(237,232,221,0.5); font-weight:400;">(bookings, buy &amp; hire requests)</span></h2>
+  </div>
+  <table class="admin-table">
+  <thead><tr><th>When</th><th>Type</th><th>Item</th><th>From</th><th>Contact</th><th>Message</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    <% requests.forEach(r => { %>
+      <tr>
+        <td style="white-space:nowrap; font-size:0.8rem; color:rgba(237,232,221,0.55);">
+          <%= new Date(r.created_at + 'Z').toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) %>
+        </td>
+        <td><%= r.kind.replace(/_/g, ' ') %></td>
+        <td><%= r.reference %></td>
+        <td><%= r.customer_name %></td>
+        <td><%= r.customer_email %><% if (r.customer_phone) { %><br><%= r.customer_phone %><% } %></td>
+        <td style="max-width:220px;"><%= r.message %></td>
+        <td><%= r.status %></td>
+        <td class="admin-actions">
+          <% if (r.status !== 'handled') { %>
+            <form method="POST" action="/admin/requests/<%= r.id %>/handled">
+              <button type="submit" class="link-danger" style="color:var(--brass-light);">Mark Handled</button>
+            </form>
+          <% } %>
+          <form method="POST" action="/admin/requests/<%= r.id %>/delete" onsubmit="return confirm('Delete this request?');">
+            <button type="submit" class="link-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+    <% if (requests.length === 0) { %>
+      <tr><td colspan="8">No requests yet.</td></tr>
+    <% } %>
+  </tbody>
+</table>
+</section>
+
+  <section>
+    <h2>Other Site Text</h2>
+    <form method="POST" action="/admin/settings/save" class="settings-form">
+      <% settings.filter(s => !s.key.startsWith('founder_')).forEach(s => { %>
+        <label><%= s.key %></label>
+        <textarea name="<%= s.key %>" rows="2"><%= s.value %></textarea>
+      <% }) %>
+      <button type="submit" class="btn-primary">Save Site Text</button>
+    </form>
+  </section>
+</div>
+</body>
+</html>

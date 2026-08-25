@@ -1,0 +1,26 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Where We Work</span>
+    <h1>Sectors we serve</h1>
+    <p class="lede">Our geospatial work spans the sectors GDL was built around.</p>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="industry-list">
+    <% industries.forEach(ind => { %>
+      <div class="industry-item reveal">
+        <% if (ind.image_path) { %>
+          <div class="industry-media"><img src="<%= ind.image_path %>" alt="<%= ind.title %>"></div>
+        <% } %>
+        <div class="industry-body">
+          <span class="industry-icon"><%= ind.icon %></span>
+          <h3><%= ind.title %></h3>
+          <p><%= ind.description %></p>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</section>
+
+<%- include('../components/cta-section') %>

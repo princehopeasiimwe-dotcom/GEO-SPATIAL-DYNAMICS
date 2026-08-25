@@ -1,0 +1,45 @@
+<header class="site-header">
+  <div class="wrap nav">
+    <a href="/" class="logo">
+      <% if (typeof settings !== 'undefined' && settings && settings.site_logo) { %>
+        <img src="<%= settings.site_logo %>" alt="Geospatial Dynamics Limited" class="logo-img">
+      <% } else { %>
+        GEOSPATIAL DYNAMICS
+      <% } %>
+    </a>
+    <button class="menu-btn" id="navMenuBtn" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" class="<%= page === 'home' ? 'active' : '' %>">Home</a>
+
+      <div class="has-dropdown">
+        <a href="/about" class="<%= page === 'about' ? 'active' : '' %>">About <span class="caret">&#9662;</span></a>
+        <div class="nav-dropdown">
+          <a href="/about#mission">Our Mission</a>
+          <a href="/about#values">Core Values</a>
+          <a href="/about#team">Our Team</a>
+        </div>
+      </div>
+
+      <div class="has-dropdown">
+        <a href="/services" class="<%= page === 'services' ? 'active' : '' %>">Services <span class="caret">&#9662;</span></a>
+        <div class="nav-dropdown">
+          <% (typeof navServices !== 'undefined' ? navServices : []).forEach(s => { %>
+            <a href="/services#<%= s.slug %>"><%= s.title %></a>
+          <% }) %>
+        </div>
+      </div>
+
+      <div class="nav-dropdown">
+  <a href="/software">Software &amp; Equipment</a>
+  <% (typeof navServices !== 'undefined' ? navServices : []).forEach(s => { %>
+    <a href="/services#<%= s.slug %>"><%= s.title %></a>
+  <% }) %>
+</div>
+
+      <a href="/industries" class="<%= page === 'industries' ? 'active' : '' %>">Industries</a>
+      <a href="/case-studies" class="<%= page === 'case-studies' ? 'active' : '' %>">Case Studies</a>
+      <a href="/contact" class="<%= page === 'contact' ? 'active' : '' %>">Contact</a>
+    </nav>
+  </div>
+</header>
+<script src="/js/nav-toggle.js"></script>

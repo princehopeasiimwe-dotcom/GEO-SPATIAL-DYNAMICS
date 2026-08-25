@@ -1,0 +1,19 @@
+<% if (founders && founders.length > 0) { %>
+  <section class="wrap founder-section">
+    <h2>A Message From Our Directors</h2>
+    <div class="founder-grid">
+      <% founders.forEach(f => { %>
+        <div class="founder-card reveal">
+          <% if (f.photo_path) { %>
+            <img src="<%= f.photo_path %>" alt="<%= f.name %>" class="founder-photo">
+          <% } %>
+          <div>
+            <p class="founder-quote">&ldquo;<%= f.message %>&rdquo;</p>
+            <p class="founder-name"><%= f.name %></p>
+            <p class="founder-title"><%= f.title %></p>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>

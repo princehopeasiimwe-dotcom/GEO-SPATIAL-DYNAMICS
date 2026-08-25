@@ -1,0 +1,12 @@
+<% if (stats && stats.length > 0) { %>
+  <section class="stats-section">
+    <div class="wrap stats-grid">
+      <% stats.forEach(stat => { %>
+        <div class="stat reveal">
+          <strong><%= stat.value %></strong>
+          <span><%= stat.label %></span>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>

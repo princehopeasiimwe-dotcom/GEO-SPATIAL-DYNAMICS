@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title><%= founder ? 'Edit' : 'New' %> Director Message — GDL Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="admin-body">
+<div class="admin-wrap">
+  <h1><%= founder ? 'Edit Director Message' : 'New Director Message' %></h1>
+  <form method="POST" action="/admin/founders/save" enctype="multipart/form-data" class="settings-form">
+    <% if (founder) { %>
+      <input type="hidden" name="id" value="<%= founder.id %>">
+      <% if (founder.photo_path) { %>
+        <label>Current photo</label>
+        <img src="<%= founder.photo_path %>" alt="" style="max-width:140px; border-radius:50%; display:block; margin-top:6px;">
+      <% } %>
+    <% } %>
+
+    <label><%= founder && founder.photo_path ? 'Replace photo (optional)' : 'Photo (optional)' %></label>
+    <input type="file" name="photo" accept="image/png, image/jpeg, image/webp">
+
+    <label>Name</label>
+    <input type="text" name="name" value="<%= founder ? founder.name : '' %>" required>
+
+    <label>Title</label>
+    <input type="text" name="title" value="<%= founder ? (founder.title || '') : '' %>" placeholder="e.g. Co-Founder & Managing Director">
+
+    <label>Message</label>
+    <textarea name="message" rows="5"><%= founder ? (founder.message || '') : '' %></textarea>
+
+    <button type="submit" class="btn-primary">Save</button>
+    <a href="/admin" class="btn-outline">Cancel</a>
+  </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Our Work</span>
+    <h1>Case studies</h1>
+    <p class="lede">A look at projects GDL has delivered.</p>
+  </div>
+</section>
+
+<section class="wrap">
+  <% if (caseStudies.length === 0) { %>
+    <p class="empty-note">Case studies will appear here once added from the admin panel.</p>
+  <% } else { %>
+    <div class="case-study-grid">
+      <% caseStudies.forEach(cs => { %>
+        <div class="case-study-card reveal">
+          <div class="case-study-media <%= cs.image_path ? '' : 'is-empty' %>">
+            <% if (cs.image_path) { %>
+              <img src="<%= cs.image_path %>" alt="<%= cs.title %>">
+            <% } else { %>
+              No image
+            <% } %>
+          </div>
+          <div class="case-study-body">
+            <% if (cs.client) { %><span class="case-study-client"><%= cs.client %></span><% } %>
+            <h3><%= cs.title %></h3>
+            <p><%= cs.summary %></p>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<%- include('../components/cta-section') %>

@@ -1,0 +1,45 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Get In Touch</span>
+    <h1>Talk to our team</h1>
+    <p class="lede">Send a message and we'll get back to you, or chat with us directly on WhatsApp.</p>
+  </div>
+</section>
+
+<section class="wrap contact-layout">
+  <div class="contact-form-col">
+    <% if (submitted) { %>
+      <div class="contact-success">
+        <h3>Message sent</h3>
+        <p>Thanks for reaching out — we'll get back to you shortly.</p>
+      </div>
+    <% } else { %>
+      <form method="POST" action="/contact" class="settings-form contact-form">
+        <label>Name</label>
+        <input type="text" name="name" required>
+
+        <label>Email</label>
+        <input type="email" name="email" required>
+
+        <label>Message</label>
+        <textarea name="message" rows="5" required></textarea>
+
+        <button type="submit" class="btn-primary">Send Message</button>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="contact-info-col">
+    <h3>Contact Details</h3>
+    <p><%= settings.contact_address %></p>
+    <p><a href="tel:<%= settings.contact_phone.replace(/\s+/g,'') %>"><%= settings.contact_phone %></a></p>
+    <p><a href="mailto:<%= settings.contact_email %>"><%= settings.contact_email %></a></p>
+
+    <% if (settings.whatsapp_number) { %>
+      <a href="https://wa.me/<%= settings.whatsapp_number.replace(/[^0-9]/g,'') %>?text=Hello%20GDL%2C%20I%27d%20like%20to%20ask%20about..."
+         class="btn-outline whatsapp-btn" target="_blank" rel="noopener">
+        Chat on WhatsApp
+      </a>
+    <% } %>
+  </div>
+</section>

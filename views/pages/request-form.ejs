@@ -1,0 +1,37 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow"><%= submitted ? 'Request Sent' : 'Request' %></span>
+    <h1><%= heading %></h1>
+  </div>
+</section>
+
+<section class="wrap">
+  <% if (submitted) { %>
+    <div class="contact-success">
+      <h3>Thank you</h3>
+      <p>Your request for <strong><%= reference %></strong> has been received. Our team will get back to you shortly.</p>
+      <a href="<%= backLink %>" class="btn-outline" style="margin-top:16px; display:inline-block;">&larr; Back</a>
+    </div>
+  <% } else { %>
+    <form method="POST" action="/requests" class="settings-form request-form">
+      <input type="hidden" name="kind" value="<%= kind %>">
+      <input type="hidden" name="reference" value="<%= reference %>">
+      <input type="hidden" name="backLink" value="<%= backLink %>">
+
+      <label>Your Name</label>
+      <input type="text" name="name" required>
+
+      <label>Email</label>
+      <input type="email" name="email" required>
+
+      <label>Phone (optional)</label>
+      <input type="text" name="phone">
+
+      <label>Message (optional)</label>
+      <textarea name="message" rows="4" placeholder="Any details you'd like to add..."></textarea>
+
+      <button type="submit" class="btn-primary">Submit Request</button>
+      <a href="<%= backLink %>" class="btn-outline">Cancel</a>
+    </form>
+  <% } %>
+</section>

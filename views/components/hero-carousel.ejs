@@ -1,0 +1,39 @@
+<% if (slides.length > 0) { %>
+<section class="mega-hero" id="heroCarousel">
+  <% slides.forEach((sl, i) => { %>
+    <div class="mega-hero-bg <%= i===0 ? 'is-active' : '' %>"
+         style="background-image:url('<%= sl.image_path %>')"
+         data-eyebrow="<%= sl.eyebrow || '' %>"
+         data-title="<%= sl.caption || settings.hero_tagline %>"
+         data-subtitle="<%= sl.subtitle || '' %>">
+    </div>
+  <% }) %>
+  <div class="mega-hero-overlay"></div>
+  <div class="wrap mega-hero-content">
+    <div class="mega-hero-text" id="heroText">
+      <% const first = slides[0]; %>
+      <span class="eyebrow light" id="heroEyebrow" <%= first.eyebrow ? '' : 'style="display:none"' %>><%= first.eyebrow || '' %></span>
+      <h1 id="heroTitle"><%= first.caption || settings.hero_tagline %></h1>
+      <p class="lede" id="heroSubtitle" <%= first.subtitle ? '' : 'style="display:none"' %>><%= first.subtitle || '' %></p>
+      <a href="/services" class="btn-primary">Explore Our Services</a>
+    </div>
+    <% if (slides.length > 1) { %>
+      <div class="mega-hero-controls">
+        <button id="heroPrev" aria-label="Previous slide">&#8592;</button>
+        <span class="mega-hero-counter" id="heroCounter">01 / <%= String(slides.length).padStart(2,'0') %></span>
+        <button id="heroNext" aria-label="Next slide">&#8594;</button>
+      </div>
+    <% } %>
+  </div>
+</section>
+<script src="/js/carousel.js"></script>
+<% } else { %>
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">GIS · Remote Sensing · Environmental & M&E Services</span>
+    <h1><%= settings.hero_tagline %></h1>
+    <p class="lede"><%= settings.about_text %></p>
+    <a href="/services" class="btn-primary">Explore Our Services</a>
+  </div>
+</section>
+<% } %>

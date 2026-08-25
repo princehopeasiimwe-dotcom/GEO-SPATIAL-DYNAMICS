@@ -1,0 +1,19 @@
+<% if (team && team.length > 0) { %>
+  <section class="wrap team-section" id="team">
+    <h2>Our Team</h2>
+    <div class="team-grid">
+      <% team.forEach(m => { %>
+        <div class="team-card reveal">
+          <% if (m.photo_path) { %>
+            <img src="<%= m.photo_path %>" alt="<%= m.name %>" class="team-photo">
+          <% } else { %>
+            <div class="team-photo team-photo-empty"><%= m.name.charAt(0) %></div>
+          <% } %>
+          <h3><%= m.name %></h3>
+          <% if (m.role) { %><span class="team-role"><%= m.role %></span><% } %>
+          <% if (m.bio) { %><p class="team-bio"><%= m.bio %></p><% } %>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>

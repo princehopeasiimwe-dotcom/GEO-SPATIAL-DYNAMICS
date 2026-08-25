@@ -1,0 +1,21 @@
+<% if (partners && partners.length > 0) { %>
+  <section class="partners-section">
+    <div class="wrap">
+      <span class="partners-label">Trusted by / Funded in partnership with</span>
+    </div>
+    <div class="partners-track-outer">
+      <div class="partners-track">
+        <% [...partners, ...partners].forEach(p => { %>
+          <% const inner = p.logo_path
+              ? `<img src="${p.logo_path}" alt="${p.name}">`
+              : `<span class="partner-text">${p.name}</span>`; %>
+          <% if (p.website_url) { %>
+            <a href="<%= p.website_url %>" target="_blank" rel="noopener" class="partner-item"><%- inner %></a>
+          <% } else { %>
+            <div class="partner-item"><%- inner %></div>
+          <% } %>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+<% } %>

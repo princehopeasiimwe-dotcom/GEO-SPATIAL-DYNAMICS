@@ -1,0 +1,24 @@
+<section class="wrap">
+  <h1>Our Services</h1>
+  <% services.forEach(service => { %>
+    <div class="service-block" id="<%= service.slug %>">
+      <div class="service-block-media <%= service.image_path ? '' : 'is-empty' %>">
+        <% if (service.image_path) { %>
+          <img src="<%= service.image_path %>" alt="<%= service.title %>">
+        <% } else { %>
+          No image
+        <% } %>
+      </div>
+      <div>
+        <h2><%= service.title %></h2>
+        <p><%= service.summary %></p>
+        <ul>
+          <% service.features.forEach(f => { %>
+            <li><%= f %></li>
+          <% }) %>
+        </ul>
+        <a href="/services/<%= service.slug %>/book" class="btn-primary book-service-btn">Book This Service</a>
+      </div>
+    </div>
+  <% }) %>
+</section>

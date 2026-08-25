@@ -1,0 +1,30 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">About Us</span>
+    <h1>Precision, expertise, and progress.</h1>
+    <p class="lede">We help organisations turn location data into better decisions.</p>
+  </div>
+</section>
+
+<section class="wrap">
+  <p><%= settings.about_text %></p>
+
+  <div class="info-card-grid">
+    <div class="info-card reveal" id="mission">
+      <span class="info-card-label">Our Mission</span>
+      <p><%= settings.mission_text %></p>
+    </div>
+    <div class="info-card reveal" id="values">
+      <span class="info-card-label">Core Values</span>
+      <div class="info-card-pills">
+        <% (settings.core_values || '').split(',').map(v => v.trim()).filter(Boolean).forEach(v => { %>
+          <span class="value-pill"><%= v %></span>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<%- include('../components/stats-section', { stats }) %>
+<%- include('../components/team-grid', { team }) %>
+<%- include('../components/cta-section') %>

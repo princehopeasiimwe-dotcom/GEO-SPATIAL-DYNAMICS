@@ -1,0 +1,31 @@
+<% const s = typeof settings !== 'undefined' && settings ? settings : {}; %>
+<footer class="site-footer">
+  <div class="wrap footer-main">
+    <div class="footer-brand">
+      <div class="logo">
+        <% if (s.site_logo) { %>
+          <img src="<%= s.site_logo %>" alt="Geospatial Dynamics Limited" class="logo-img">
+        <% } else { %>
+          GEOSPATIAL DYNAMICS
+        <% } %>
+      </div>
+      <p>Practical geospatial technology, professional services, and spatial intelligence for Uganda and East Africa.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="/services">Services</a>
+      <a href="/industries">Industries</a>
+      <a href="/case-studies">Case Studies</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <% if (s.contact_address) { %><span><%= s.contact_address %></span><% } %>
+      <% if (s.contact_phone) { %><a href="tel:<%= s.contact_phone.replace(/\s+/g,'') %>"><%= s.contact_phone %></a><% } %>
+      <% if (s.contact_email) { %><a href="mailto:<%= s.contact_email %>"><%= s.contact_email %></a><% } %>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>&copy; <%= new Date().getFullYear() %> Geospatial Dynamics Limited. All rights reserved.</span>
+  </div>
+</footer>

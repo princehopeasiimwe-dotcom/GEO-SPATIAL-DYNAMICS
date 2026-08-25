@@ -1,0 +1,35 @@
+<section class="wrap word-cards-section">
+  <h2>Who We Are</h2>
+
+  <div class="word-cards">
+    <div class="word-card word-card--1 reveal <%= settings.word_card_1_image ? 'has-image' : '' %>"
+      <% if (settings.word_card_1_image) { %>style="background-image:url('<%= settings.word_card_1_image %>')"<% } %>>
+      <div class="word-card-inner">
+        <span class="word-card-label">Tagline</span>
+        <span class="word-card-text"><%= settings.hero_tagline %></span>
+      </div>
+    </div>
+    <div class="word-card word-card--2 reveal <%= settings.word_card_2_image ? 'has-image' : '' %>"
+      <% if (settings.word_card_2_image) { %>style="background-image:url('<%= settings.word_card_2_image %>')"<% } %>>
+      <div class="word-card-inner">
+        <span class="word-card-label">About Us</span>
+        <span class="word-card-text"><%= settings.about_text %></span>
+      </div>
+    </div>
+    <div class="word-card word-card--3 reveal <%= settings.word_card_3_image ? 'has-image' : '' %>"
+      <% if (settings.word_card_3_image) { %>style="background-image:url('<%= settings.word_card_3_image %>')"<% } %>>
+      <div class="word-card-inner">
+        <span class="word-card-label">Our Mission</span>
+        <span class="word-card-text"><%= settings.mission_text %></span>
+      </div>
+    </div>
+    <div class="word-card word-card--4 reveal <%= settings.word_card_4_image ? 'has-image' : '' %>"
+      <% if (settings.word_card_4_image) { %>style="background-image:url('<%= settings.word_card_4_image %>')"<% } %>>
+      <div class="word-card-inner">
+        <span class="word-card-label">Core Values</span>
+        <span class="word-card-text"><%= settings.core_values %></span>
+      </div>
+    </div>
+  </div>
+</section>
+<script src="/js/word-cards.js"></script>

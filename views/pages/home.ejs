@@ -1,0 +1,76 @@
+<%- include('../components/hero-carousel') %>
+
+<%- include('../components/intro-band') %>
+
+<%- include('../components/stats-section', { stats }) %>
+
+<%- include('../components/founder-card') %>
+
+<%- include('../components/partners-strip', { partners }) %>
+
+<%- include('../components/word-cards') %>
+
+<section class="wrap">
+  <h2>What We Do</h2>
+  <div class="card-grid">
+    <% services.forEach(service => { %>
+      <%- include('../components/service-card', { service }) %>
+    <% }) %>
+  </div>
+</section>
+
+<% if (caseStudies.length > 0) { %>
+  <section class="wrap">
+    <h2>Recent Work</h2>
+    <div class="case-study-grid">
+      <% caseStudies.slice(0, 3).forEach(cs => { %>
+        <div class="case-study-card reveal">
+          <div class="case-study-media <%= cs.image_path ? '' : 'is-empty' %>">
+            <% if (cs.image_path) { %>
+              <img src="<%= cs.image_path %>" alt="<%= cs.title %>">
+            <% } else { %>
+              No image
+            <% } %>
+          </div>
+          <div class="case-study-body">
+            <% if (cs.client) { %><span class="case-study-client"><%= cs.client %></span><% } %>
+            <h3><%= cs.title %></h3>
+            <p><%= cs.summary %></p>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
+<% if (products.length > 0) { %>
+  <section class="wrap">
+    <div class="section-head-row">
+      <h2>Software &amp; Equipment</h2>
+      <a href="/software" class="view-all-link">View All &rarr;</a>
+    </div>
+    <div class="product-grid">
+      <% products.slice(0, 3).forEach(p => { %>
+        <div class="product-card reveal">
+          <div class="product-media <%= p.image_path ? '' : 'is-empty' %>">
+            <% if (p.image_path) { %>
+              <img src="<%= p.image_path %>" alt="<%= p.name %>">
+            <% } else { %>
+              No image
+            <% } %>
+          </div>
+          <div class="product-body">
+            <h3><%= p.name %></h3>
+            <p><%= p.description %></p>
+            <% if (p.price_info) { %><span class="product-price"><%= p.price_info %></span><% } %>
+            <div class="product-actions">
+              <a href="/software/<%= p.id %>/buy" class="btn-primary">Buy</a>
+              <a href="/software/<%= p.id %>/hire" class="btn-outline">Hire</a>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+<%- include('../components/cta-section') %>

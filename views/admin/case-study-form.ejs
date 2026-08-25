@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title><%= caseStudy ? 'Edit' : 'New' %> Case Study — GDL Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="admin-body">
+<div class="admin-wrap">
+  <h1><%= caseStudy ? 'Edit Case Study' : 'New Case Study' %></h1>
+  <form method="POST" action="/admin/case-studies/save" enctype="multipart/form-data" class="settings-form">
+    <% if (caseStudy) { %>
+      <input type="hidden" name="id" value="<%= caseStudy.id %>">
+      <% if (caseStudy.image_path) { %>
+        <label>Current image</label>
+        <img src="<%= caseStudy.image_path %>" alt="" style="max-width:200px; display:block; margin-top:6px; border-radius:3px;">
+      <% } %>
+    <% } %>
+
+    <label><%= caseStudy && caseStudy.image_path ? 'Replace image (optional)' : 'Image (optional)' %></label>
+    <input type="file" name="image" accept="image/png, image/jpeg, image/webp">
+
+    <label>Title</label>
+    <input type="text" name="title" value="<%= caseStudy ? caseStudy.title : '' %>" required>
+
+    <label>Client / Partner (optional)</label>
+    <input type="text" name="client" value="<%= caseStudy ? (caseStudy.client || '') : '' %>" placeholder="e.g. Ministry of Water and Environment">
+
+    <label>Summary</label>
+    <textarea name="summary" rows="4"><%= caseStudy ? caseStudy.summary : '' %></textarea>
+
+    <button type="submit" class="btn-primary">Save</button>
+    <a href="/admin" class="btn-outline">Cancel</a>
+  </form>
+</div>
+</body>
+</html>

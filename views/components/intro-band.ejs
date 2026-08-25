@@ -1,0 +1,14 @@
+<section class="wrap intro-band">
+  <div class="intro-band-text">
+    <span class="eyebrow">About GDL</span>
+    <p class="intro-lede"><%= settings.about_text %></p>
+  </div>
+  <% const values = (settings.core_values || '').split(',').map(v => v.trim()).filter(Boolean); %>
+  <% if (values.length > 0) { %>
+    <div class="intro-band-values">
+      <% values.forEach(v => { %>
+        <span class="value-pill"><%= v %></span>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
