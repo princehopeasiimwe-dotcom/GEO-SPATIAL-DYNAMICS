@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const { db } = require('../db/init');
-const { requireLogin } = require('../middleware/auth.js');
+const { requireLogin } = require('../middleware/Auth.js');
 const { upload } = require('../middleware/upload.js');
 
 // --- Login / logout ---
