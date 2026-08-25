@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=18.x",
+    "node": ">=18.20.8",
     "npm": ">=10.x"
   },
   "description": "Geospatial Dynamics Limited - website with database-driven content and admin panel",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.3.0",
+    "better-sqlite3": "11.3.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
