@@ -1,0 +1,38 @@
+<section class="page-hero">
+  <div class="wrap">
+    <span class="eyebrow">Software & Equipment</span>
+    <h1>GIS software and GPS equipment</h1>
+    <p class="lede">We sell GIS software licenses and offer GPS equipment for hire or purchase.</p>
+  </div>
+</section>
+
+<section class="wrap">
+  <% if (products.length === 0) { %>
+    <p class="empty-note">Products will appear here once added from the admin panel.</p>
+  <% } else { %>
+    <div class="product-grid">
+      <% products.forEach(p => { %>
+        <div class="product-card reveal">
+          <div class="product-media <%= p.image_path ? '' : 'is-empty' %>">
+            <% if (p.image_path) { %>
+              <img src="<%= p.image_path %>" alt="<%= p.name %>">
+            <% } else { %>
+              No image
+            <% } %>
+          </div>
+          <div class="product-body">
+            <h3><%= p.name %></h3>
+            <p><%= p.description %></p>
+            <% if (p.price_info) { %><span class="product-price"><%= p.price_info %></span><% } %>
+            <div class="product-actions">
+              <a href="/software/<%= p.id %>/buy" class="btn-primary">Buy</a>
+              <a href="/software/<%= p.id %>/hire" class="btn-outline">Hire</a>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<%- include('../components/cta-section') %>
