@@ -74,6 +74,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`GDL site running at http://localhost:${PORT}`);
-  console.log(`Admin panel at http://localhost:${PORT}/admin`);
+  console.log(`GDL server running on port ${PORT}`);
+  console.log(`Admin panel at ${PORT}/admin`);
 });
