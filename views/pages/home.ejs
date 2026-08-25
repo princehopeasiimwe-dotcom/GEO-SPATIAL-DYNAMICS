@@ -1,20 +1,20 @@
-<%- include('../components/hero-carousel') %>
+<%- include('../components/hero-carousel.ejs') %>
 
-<%- include('../components/intro-band') %>
+<%- include('../components/intro-band.ejs') %>
 
-<%- include('../components/stats-section', { stats }) %>
+<%- include('../components/stats-section.ejs', { stats }) %>
 
-<%- include('../components/founder-card') %>
+<%- include('../components/founder-card.ejs') %>
 
-<%- include('../components/partners-strip', { partners }) %>
+<%- include('../components/partners-strip.ejs', { partners }) %>
 
-<%- include('../components/word-cards') %>
+<%- include('../components/word-cards.ejs') %>
 
 <section class="wrap">
   <h2>What We Do</h2>
   <div class="card-grid">
     <% services.forEach(service => { %>
-      <%- include('../components/service-card', { service }) %>
+      <%- include('../components/service-card.ejs', { service }) %>
     <% }) %>
   </div>
 </section>
@@ -73,4 +73,4 @@
     </div>
   </section>
 <% } %>
-<%- include('../components/cta-section') %>
+<%- include('../components/cta-section.ejs') %>
