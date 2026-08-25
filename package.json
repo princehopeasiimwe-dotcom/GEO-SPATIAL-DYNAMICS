@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.x"
+    "node": ">=18.x",
+    "npm": ">=10.x"
   },
   "description": "Geospatial Dynamics Limited - website with database-driven content and admin panel",
   "scripts": {
