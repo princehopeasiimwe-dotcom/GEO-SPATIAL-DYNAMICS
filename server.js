@@ -18,6 +18,9 @@ const  db  = require('./db');
 // ------------------------------------------------------------
 
 const app = express();
+//Render runs behind a proxy.
+//Trust the proxy so secure session cookies work correctly.
+app.set('trust proxy', 1);
 
 // ------------------------------------------------------------
 // VIEW ENGINE
@@ -45,13 +48,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'change-this-secret',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
       maxAge: 1000 * 60 * 60 * 4, // 4 hours
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production'
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
     }
   })
 );
