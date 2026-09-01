@@ -1,551 +1,2177 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const fs = require('fs');
-const path = require('path');
-const router = express.Router();
-const { db } = require('../db/init');
-const { requireLogin } = require('../middleware/Auth.js');
-const { upload } = require('../middleware/upload.js');
 
-// --- Login / logout ---
+const router = express.Router();
+
+
+const { requireLogin } = require('../middleware/Auth.js');
+const {
+  upload,
+  uploadToSupabase,
+  uploadFieldsToSupabase,
+  deleteFromSupabase
+} = require('../middleware/upload.js');
+const db = require('../db/index.js');
+
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+async function getSettings() {
+  const result = await db.query(
+    'SELECT key, value FROM settings'
+  );
+
+  const settings = {};
+
+  result.rows.forEach(row => {
+    settings[row.key] = row.value;
+  });
+
+  return settings;
+}
+
+
+// ============================================================
+// LOGIN / LOGOUT
+// ============================================================
 
 router.get('/login', (req, res) => {
-  res.render('admin/login', { error: null, layout: false });
-});
-
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.render('admin/login', { error: 'Invalid username or password', layout: false });
-  }
-
-  req.session.userId = user.id; // this is what "logs them in"
-  res.redirect('/admin');
-});
-
-router.post('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/admin/login'));
-});
-
-// --- Dashboard ---
-
-router.get('/', requireLogin, (req, res) => {
-  const services = db.prepare('SELECT * FROM services ORDER BY sort_order').all();
-  const settings = db.prepare('SELECT key, value FROM settings').all();
-  const slides = db.prepare('SELECT * FROM slides ORDER BY sort_order').all();
-  const stats = db.prepare('SELECT * FROM stats ORDER BY sort_order').all();
-  const industries = db.prepare('SELECT * FROM industries ORDER BY sort_order').all();
-  const caseStudies = db.prepare('SELECT * FROM case_studies ORDER BY sort_order').all();
-  const team = db.prepare('SELECT * FROM team_members ORDER BY sort_order').all();
-  const founders = db.prepare('SELECT * FROM founders ORDER BY sort_order').all();
-  const partners = db.prepare('SELECT * FROM partners ORDER BY sort_order').all();
-  const products = db.prepare('SELECT * FROM products ORDER BY sort_order').all();
-  const requests = db.prepare('SELECT * FROM requests ORDER BY created_at DESC').all();
-  res.render('admin/dashboard', { services, settings, slides, stats, industries, caseStudies, team, founders, partners, products, requests, layout: false });
-});
-
-// --- Services: create / edit / delete ---
-
-router.get('/services/new', requireLogin, (req, res) => {
-  res.render('admin/service-form', { service: null, featuresText: '', layout: false });
-});
-
-router.get('/services/:id/edit', requireLogin, (req, res) => {
-  const service = db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id);
-  const features = db.prepare(
-    'SELECT feature_text FROM service_features WHERE service_id = ? ORDER BY sort_order'
-  ).all(req.params.id);
-
-  if (!service) return res.redirect('/admin');
-
-  res.render('admin/service-form', {
-    service,
-    featuresText: features.map(f => f.feature_text).join('\n'),
+  res.render('admin/login', {
+    error: null,
     layout: false
   });
 });
 
-router.post('/services/save', requireLogin, upload.single('image'), (req, res) => {
-  const { id, title, slug, summary, features_raw } = req.body;
-  const featureLines = features_raw.split('\n').map(f => f.trim()).filter(Boolean);
 
-  let serviceId = id;
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT image_path FROM services WHERE id = ?').get(id);
-      if (existing && existing.image_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.image_path), () => {});
-      }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE services SET title = ?, slug = ?, summary = ?, image_path = ? WHERE id = ?')
-        .run(title, slug, summary, newPath, id);
-    } else {
-      db.prepare('UPDATE services SET title = ?, slug = ?, summary = ? WHERE id = ?')
-        .run(title, slug, summary, id);
+    const result = await db.query(
+      'SELECT id, username, password_hash FROM users WHERE username = $1',
+      [username]
+    );
+
+    const user = result.rows[0];
+
+   if (!user) {
+      return res.render('admin/login', {
+        error: 'Invalid username or password',
+        layout: false
+      });
     }
-    db.prepare('DELETE FROM service_features WHERE service_id = ?').run(id);
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM services').get().m || 0;
-    const imagePath = req.file ? '/uploads/' + req.file.filename : null;
-    const result = db.prepare(
-      'INSERT INTO services (title, slug, summary, image_path, sort_order) VALUES (?, ?, ?, ?, ?)'
-    ).run(title, slug, summary, imagePath, maxOrder + 1);
-    serviceId = result.lastInsertRowid;
+    const passwordMatch = await bcrypt.compare(
+  password,
+  user.password_hash
+);
+
+if (!passwordMatch) {
+  return res.render('admin/login', {
+    error: 'Invalid username or password',
+    layout: false
+  });
+}
+     req.session.userId = user.id;
+    req.session.username = user.username;
+
+    res.redirect('/admin');
+
+  } catch (error) {
+    console.error('LOGIN ERROR:', error);
+
+    res.status(500).send(`
+      <pre>
+Login error:
+
+${error.stack}
+      </pre>
+    `);
   }
-
-  const insertFeature = db.prepare(
-    'INSERT INTO service_features (service_id, feature_text, sort_order) VALUES (?, ?, ?)'
-  );
-  featureLines.forEach((f, i) => insertFeature.run(serviceId, f, i));
-
-  res.redirect('/admin');
 });
 
-router.post('/services/:id/delete', requireLogin, (req, res) => {
-  db.prepare('DELETE FROM services WHERE id = ?').run(req.params.id);
-  db.prepare('DELETE FROM service_features WHERE service_id = ?').run(req.params.id);
-  res.redirect('/admin');
+
+// =========================
+// LOGOUT
+// =========================
+
+router.post('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/admin/login');
+  });
+});
+   
+// ============================================================
+// ADMIN DASHBOARD
+// ============================================================
+
+router.get('/', requireLogin, async (req, res) => {
+  try {
+
+    const [
+      services,
+      settings,
+      slides,
+      stats,
+      industries,
+      caseStudies,
+      team,
+      founders,
+      partners,
+      products,
+      requests
+    ] = await Promise.all([
+
+      db.query(
+        'SELECT * FROM services ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT key, value FROM settings'
+      ),
+
+      db.query(
+        'SELECT * FROM slides ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM stats ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM industries ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM case_studies ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM team_members ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM founders ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM partners ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM products ORDER BY sort_order'
+      ),
+
+      db.query(
+        'SELECT * FROM requests ORDER BY created_at DESC'
+      )
+
+    ]);
+
+    res.render('admin/dashboard.ejs', {
+      services: services.rows,
+      settings: settings.rows,
+      slides: slides.rows,
+      stats: stats.rows,
+      industries: industries.rows,
+      caseStudies: caseStudies.rows,
+      team: team.rows,
+      founders: founders.rows,
+      partners: partners.rows,
+      products: products.rows,
+      requests: requests.rows,
+      layout: false
+    });
+
+  } catch (error) {
+
+    console.error('Dashboard error:', error);
+
+    res.status(500).send(
+      '<pre>' + error.stack + '</pre>'
+    );
+  }
 });
 
-// --- Word card background images (optional, "Who We Are" section) ---
 
-router.post('/word-cards/save', requireLogin, upload.fields([
+// ============================================================
+// SERVICES
+// ============================================================
+
+router.get('/services/new', requireLogin, (req, res) => {
+  res.render('admin/service-form.ejs', {
+    service: null,
+    featuresText: '',
+    layout: false
+  });
+});
+
+
+router.get('/services/:id/edit', requireLogin, async (req, res) => {
+  try {
+
+    const serviceResult = await db.query(
+      'SELECT * FROM services WHERE id = $1',
+      [req.params.id]
+    );
+
+    const service = serviceResult.rows[0];
+
+    if (!service) {
+      return res.redirect('/admin');
+    }
+
+    const featuresResult = await db.query(
+      `
+      SELECT feature_text
+      FROM service_features
+      WHERE service_id = $1
+      ORDER BY sort_order
+      `,
+      [req.params.id]
+    );
+
+    res.render('admin/service-form.ejs', {
+      service,
+      featuresText: featuresResult.rows
+        .map(f => f.feature_text)
+        .join('\n'),
+      layout: false
+    });
+
+  } catch (error) {
+
+    console.error('Edit service error:', error);
+
+    res.status(500).send(
+      '<pre>' + error.stack + '</pre>'
+    );
+  }
+});
+
+
+router.post(
+  '/services/save',
+  requireLogin,
+  upload.single('image'),
+uploadToSupabase,
+async (req, res) => {
+
+    const client = await db.connect();
+
+    try {
+
+      const {
+        id,
+        title,
+        slug,
+        summary,
+        features_raw
+      } = req.body;
+
+      const featureLines = (features_raw || '')
+        .split('\n')
+        .map(f => f.trim())
+        .filter(Boolean);
+
+      await client.query('BEGIN');
+
+      let serviceId = id;
+
+      if (id) {
+
+        if (req.file) {
+
+          const existingResult = await client.query(
+            'SELECT image_path FROM services WHERE id = $1',
+            [id]
+          );
+
+          const existing = existingResult.rows[0];
+
+          if (existing && existing.image_path) {
+            await deleteFromSupabase(existing.image_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await client.query(
+            `
+            UPDATE services
+            SET title = $1,
+                slug = $2,
+                summary = $3,
+                image_path = $4
+            WHERE id = $5
+            `,
+            [title, slug, summary, newPath, id]
+          );
+
+        } else {
+
+          await client.query(
+            `
+            UPDATE services
+            SET title = $1,
+                slug = $2,
+                summary = $3
+            WHERE id = $4
+            `,
+            [title, slug, summary, id]
+          );
+        }
+
+        await client.query(
+          'DELETE FROM service_features WHERE service_id = $1',
+          [id]
+        );
+
+      } else {
+
+        const orderResult = await client.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM services'
+        );
+
+        const maxOrder =
+          Number(orderResult.rows[0].max_order) || 0;
+
+        const imagePath = req.file
+  ? req.file.publicUrl
+  : null;
+
+        const result = await client.query(
+          `
+          INSERT INTO services
+          (title, slug, summary, image_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id
+          `,
+          [
+            title,
+            slug,
+            summary,
+            imagePath,
+            maxOrder + 1
+          ]
+        );
+
+        serviceId = result.rows[0].id;
+      }
+
+      for (let i = 0; i < featureLines.length; i++) {
+
+        await client.query(
+          `
+          INSERT INTO service_features
+          (service_id, feature_text, sort_order)
+          VALUES ($1, $2, $3)
+          `,
+          [
+            serviceId,
+            featureLines[i],
+            i
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      await client.query('ROLLBACK');
+
+      console.error('Save service error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+
+    } finally {
+
+      client.release();
+
+    }
+  }
+);
+
+
+router.post(
+  '/services/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT image_path FROM services WHERE id = $1',
+        [req.params.id]
+      );
+
+      const service = result.rows[0];
+
+      if (service && service.image_path) {
+        await deleteFromSupabase(service.image_path);
+      }
+
+      await db.query(
+        'DELETE FROM service_features WHERE service_id = $1',
+        [req.params.id]
+      );
+
+      await db.query(
+        'DELETE FROM services WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete service error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// WORD CARD IMAGES
+// ============================================================
+
+router.post(
+  '/word-cards/save',
+  requireLogin,
+  upload.fields([
   { name: 'tagline_image', maxCount: 1 },
   { name: 'about_image', maxCount: 1 },
   { name: 'mission_image', maxCount: 1 },
   { name: 'values_image', maxCount: 1 }
-]), (req, res) => {
-  const fieldToKey = {
-    tagline_image: 'word_card_1_image',
-    about_image: 'word_card_2_image',
-    mission_image: 'word_card_3_image',
-    values_image: 'word_card_4_image'
-  };
-  const upsert = db.prepare(`
-    INSERT INTO settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `);
+]),
+uploadFieldsToSupabase,
+  async (req, res) => {
 
-  Object.entries(fieldToKey).forEach(([field, key]) => {
-    const uploaded = req.files && req.files[field] && req.files[field][0];
-    const removeRequested = req.body[field + '_remove'] === 'on';
-    const old = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    try {
 
-    if (uploaded) {
-      // A new file was chosen - it replaces whatever was there before.
-      if (old && old.value) {
-        fs.unlink(path.join(__dirname, '..', 'public', old.value), () => {});
+      const fieldToKey = {
+        tagline_image: 'word_card_1_image',
+        about_image: 'word_card_2_image',
+        mission_image: 'word_card_3_image',
+        values_image: 'word_card_4_image'
+      };
+
+      for (const [field, key] of Object.entries(fieldToKey)) {
+
+        const uploaded =
+          req.files &&
+          req.files[field] &&
+          req.files[field][0];
+
+        const removeRequested =
+          req.body[field + '_remove'] === 'on';
+
+        const oldResult = await db.query(
+          'SELECT value FROM settings WHERE key = $1',
+          [key]
+        );
+
+        const old = oldResult.rows[0];
+
+        if (uploaded) {
+
+          if (old && old.value) {
+            await deleteFromSupabase(old.value);
+          }
+
+          await db.query(
+            `
+            INSERT INTO settings (key, value)
+            VALUES ($1, $2)
+            ON CONFLICT(key)
+            DO UPDATE SET value = EXCLUDED.value
+            `,
+            [
+  key,
+  uploaded.publicUrl
+]
+          );
+
+        } else if (
+          removeRequested &&
+          old &&
+          old.value
+        ) {
+
+          await deleteFromSupabase(old.value);
+
+          await db.query(
+            `
+            INSERT INTO settings (key, value)
+            VALUES ($1, $2)
+            ON CONFLICT(key)
+            DO UPDATE SET value = EXCLUDED.value
+            `,
+            [key, '']
+          );
+        }
       }
-      upsert.run(key, '/uploads/' + uploaded.filename);
-    } else if (removeRequested && old && old.value) {
-      // "Remove image" was checked and no replacement was uploaded -
-      // delete the file and clear the setting back to empty (plain card).
-      fs.unlink(path.join(__dirname, '..', 'public', old.value), () => {});
-      upsert.run(key, '');
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Word cards error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
     }
-    // Otherwise: no new file, no removal requested - leave it untouched.
-  });
+  }
+);
 
-  res.redirect('/admin');
-});
 
-// --- Settings (About text, mission, contact info, etc.) ---
-// This route is used by the plain-text settings form (no file upload).
+// ============================================================
+// SETTINGS
+// ============================================================
 
-router.post('/settings/save', requireLogin, (req, res) => {
-  const upsert = db.prepare(`
-    INSERT INTO settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `);
-  Object.entries(req.body).forEach(([key, value]) => upsert.run(key, value));
-  res.redirect('/admin');
-});
+router.post(
+  '/settings/save',
+  requireLogin,
+  async (req, res) => {
 
-// --- Directors' Messages (multiple founders/directors, each with their
-// own photo, title, and message) ---
+    try {
+
+      for (const [key, value] of Object.entries(req.body)) {
+
+        await db.query(
+          `
+          INSERT INTO settings (key, value)
+          VALUES ($1, $2)
+          ON CONFLICT(key)
+          DO UPDATE SET value = EXCLUDED.value
+          `,
+          [key, value]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Settings error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// FOUNDERS / DIRECTORS
+// ============================================================
 
 router.get('/founders/new', requireLogin, (req, res) => {
-  res.render('admin/founder-form', { founder: null, layout: false });
-});
-
-router.get('/founders/:id/edit', requireLogin, (req, res) => {
-  const founder = db.prepare('SELECT * FROM founders WHERE id = ?').get(req.params.id);
-  if (!founder) return res.redirect('/admin');
-  res.render('admin/founder-form', { founder, layout: false });
-});
-
-router.post('/founders/save', requireLogin, upload.single('photo'), (req, res) => {
-  const { id, name, title, message } = req.body;
-
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT photo_path FROM founders WHERE id = ?').get(id);
-      if (existing && existing.photo_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.photo_path), () => {});
-      }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE founders SET name = ?, title = ?, message = ?, photo_path = ? WHERE id = ?')
-        .run(name, title, message, newPath, id);
-    } else {
-      db.prepare('UPDATE founders SET name = ?, title = ?, message = ? WHERE id = ?')
-        .run(name, title, message, id);
-    }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM founders').get().m || 0;
-    const photoPath = req.file ? '/uploads/' + req.file.filename : null;
-    db.prepare('INSERT INTO founders (name, title, message, photo_path, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(name, title, message, photoPath, maxOrder + 1);
-  }
-
-  res.redirect('/admin');
-});
-
-router.post('/founders/:id/delete', requireLogin, (req, res) => {
-  const founder = db.prepare('SELECT photo_path FROM founders WHERE id = ?').get(req.params.id);
-  if (founder && founder.photo_path) {
-    fs.unlink(path.join(__dirname, '..', 'public', founder.photo_path), () => {});
-  }
-  db.prepare('DELETE FROM founders WHERE id = ?').run(req.params.id);
-
-  res.redirect('/admin');
-});
-
-// --- Site logo ---
-
-router.post('/branding/save', requireLogin, upload.single('logo'), (req, res) => {
-  if (req.file) {
-    const old = db.prepare("SELECT value FROM settings WHERE key = 'site_logo'").get();
-    if (old && old.value) {
-      fs.unlink(path.join(__dirname, '..', 'public', old.value), () => {});
-    }
-    const newPath = '/uploads/' + req.file.filename;
-    db.prepare(`
-      INSERT INTO settings (key, value) VALUES ('site_logo', ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).run(newPath);
-  }
-  res.redirect('/admin');
-});
-
-// --- Slides (homepage image carousel) ---
-
-router.get('/slides/new', requireLogin, (req, res) => {
-  res.render('admin/slide-form', { slide: null, layout: false });
-});
-
-router.get('/slides/:id/edit', requireLogin, (req, res) => {
-  const slide = db.prepare('SELECT * FROM slides WHERE id = ?').get(req.params.id);
-  if (!slide) return res.redirect('/admin');
-  res.render('admin/slide-form', { slide, layout: false });
-});
-
-router.post('/slides/save', requireLogin, upload.single('image'), (req, res) => {
-  const { id, caption, eyebrow, subtitle } = req.body;
-
-  if (id) {
-    // Editing an existing slide
-    if (req.file) {
-      const existing = db.prepare('SELECT image_path FROM slides WHERE id = ?').get(id);
-      if (existing) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.image_path), () => {});
-      }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE slides SET image_path = ?, caption = ?, eyebrow = ?, subtitle = ? WHERE id = ?')
-        .run(newPath, caption, eyebrow, subtitle, id);
-    } else {
-      db.prepare('UPDATE slides SET caption = ?, eyebrow = ?, subtitle = ? WHERE id = ?')
-        .run(caption, eyebrow, subtitle, id);
-    }
-  } else {
-    // New slide - an image is required
-    if (!req.file) {
-      return res.status(400).send('An image is required for a new slide. Go back and choose a file.');
-    }
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM slides').get().m || 0;
-    const newPath = '/uploads/' + req.file.filename;
-    db.prepare('INSERT INTO slides (image_path, caption, eyebrow, subtitle, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(newPath, caption, eyebrow, subtitle, maxOrder + 1);
-  }
-
-  res.redirect('/admin');
-});
-
-router.post('/slides/:id/delete', requireLogin, (req, res) => {
-  const slide = db.prepare('SELECT image_path FROM slides WHERE id = ?').get(req.params.id);
-  if (slide) {
-    fs.unlink(path.join(__dirname, '..', 'public', slide.image_path), () => {});
-  }
-  db.prepare('DELETE FROM slides WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
-
-// --- Stats (the numbers strip: "10+ Years", "50+ Projects", etc.) ---
-
-router.post('/stats/save', requireLogin, (req, res) => {
-  const { id, value, label } = req.body;
-  if (id) {
-    db.prepare('UPDATE stats SET value = ?, label = ? WHERE id = ?').run(value, label, id);
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM stats').get().m || 0;
-    db.prepare('INSERT INTO stats (value, label, sort_order) VALUES (?, ?, ?)').run(value, label, maxOrder + 1);
-  }
-  res.redirect('/admin');
-});
-
-router.post('/stats/:id/delete', requireLogin, (req, res) => {
-  db.prepare('DELETE FROM stats WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
-
-// --- Industries (sectors served) ---
-
-router.get('/industries/new', requireLogin, (req, res) => {
-  res.render('admin/industry-form', { industry: null, layout: false });
-});
-
-router.get('/industries/:id/edit', requireLogin, (req, res) => {
-  const industry = db.prepare('SELECT * FROM industries WHERE id = ?').get(req.params.id);
-  if (!industry) return res.redirect('/admin');
-  res.render('admin/industry-form', { industry, layout: false });
-});
-
-router.post('/industries/save', requireLogin, upload.single('image'), (req, res) => {
-  const { id, title, icon, description } = req.body;
-  const imagePath = req.file ? '/uploads/' + req.file.filename : null;
-
-  if (id) {
-    if (imagePath) {
-      const existing = db.prepare('SELECT image_path FROM industries WHERE id = ?').get(id);
-      if (existing && existing.image_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.image_path), () => {});
-      }
-      db.prepare('UPDATE industries SET title = ?, icon = ?, description = ?, image_path = ? WHERE id = ?')
-        .run(title, icon, description, imagePath, id);
-    } else {
-      db.prepare('UPDATE industries SET title = ?, icon = ?, description = ? WHERE id = ?')
-        .run(title, icon, description, id);
-    }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM industries').get().m || 0;
-    db.prepare('INSERT INTO industries (title, icon, description, image_path, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(title, icon, description, imagePath, maxOrder + 1);
-  }
-  res.redirect('/admin');
-});
-
-router.post('/industries/:id/delete', requireLogin, (req, res) => {
-  db.prepare('DELETE FROM industries WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
-
-// --- Case studies (past project write-ups) ---
-
-router.get('/case-studies/new', requireLogin, (req, res) => {
-  res.render('admin/case-study-form', { caseStudy: null, layout: false });
-});
-
-router.get('/case-studies/:id/edit', requireLogin, (req, res) => {
-  const caseStudy = db.prepare('SELECT * FROM case_studies WHERE id = ?').get(req.params.id);
-  if (!caseStudy) return res.redirect('/admin');
-  res.render('admin/case-study-form', { caseStudy, layout: false });
-});
-
-router.post('/case-studies/save', requireLogin, upload.single('image'), (req, res) => {
-  const { id, title, client, summary } = req.body;
-
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT image_path FROM case_studies WHERE id = ?').get(id);
-      if (existing && existing.image_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.image_path), () => {});
-      }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE case_studies SET title = ?, client = ?, summary = ?, image_path = ? WHERE id = ?')
-        .run(title, client, summary, newPath, id);
-    } else {
-      db.prepare('UPDATE case_studies SET title = ?, client = ?, summary = ? WHERE id = ?')
-        .run(title, client, summary, id);
-    }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM case_studies').get().m || 0;
-    const imagePath = req.file ? '/uploads/' + req.file.filename : null;
-    db.prepare('INSERT INTO case_studies (title, client, summary, image_path, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(title, client, summary, imagePath, maxOrder + 1);
-  }
-
-  res.redirect('/admin');
-});
-
-router.post('/case-studies/:id/delete', requireLogin, (req, res) => {
-  const cs = db.prepare('SELECT image_path FROM case_studies WHERE id = ?').get(req.params.id);
-  if (cs && cs.image_path) {
-    fs.unlink(path.join(__dirname, '..', 'public', cs.image_path), () => {});
-  }
-  db.prepare('DELETE FROM case_studies WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
-
-// --- Team members ---
-
-router.get('/team/new', requireLogin, (req, res) => {
-  res.render('admin/team-form', { member: null, layout: false }, (err, html) => {
-    if (err) {
-      console.error('>>> RENDER ERROR:', err);
-      return res.status(500).send('<pre>' + err.stack + '</pre>');
-    }
-    console.log('>>> Rendered HTML length:', html.length);
-    res.send(html);
+  res.render('admin/founder-form.ejs', {
+    founder: null,
+    layout: false
   });
 });
 
-router.get('/team/:id/edit', requireLogin, (req, res) => {
-  const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
-  if (!member) return res.redirect('/admin');
-  res.render('admin/team-form', { member, layout: false });
-});
 
-router.post('/team/save', requireLogin, upload.single('photo'), (req, res) => {
-  const { id, name, role, bio } = req.body;
+router.get(
+  '/founders/:id/edit',
+  requireLogin,
+  async (req, res) => {
 
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT photo_path FROM team_members WHERE id = ?').get(id);
-      if (existing && existing.photo_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.photo_path), () => {});
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM founders WHERE id = $1',
+        [req.params.id]
+      );
+
+      const founder = result.rows[0];
+
+      if (!founder) {
+        return res.redirect('/admin');
       }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE team_members SET name = ?, role = ?, bio = ?, photo_path = ? WHERE id = ?')
-        .run(name, role, bio, newPath, id);
-    } else {
-      db.prepare('UPDATE team_members SET name = ?, role = ?, bio = ? WHERE id = ?')
-        .run(name, role, bio, id);
+
+      res.render('admin/founder-form.ejs', {
+        founder,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit founder error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
     }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM team_members').get().m || 0;
-    const photoPath = req.file ? '/uploads/' + req.file.filename : null;
-    db.prepare('INSERT INTO team_members (name, role, bio, photo_path, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(name, role, bio, photoPath, maxOrder + 1);
   }
+);
 
-  res.redirect('/admin');
+
+router.post(
+  '/founders/save',
+  requireLogin,
+  upload.single('photo'),
+  uploadToSupabase,
+  async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        name,
+        title,
+        message
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT photo_path FROM founders WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.photo_path) {
+            await deleteFromSupabase(existing.photo_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE founders
+            SET name = $1,
+                title = $2,
+                message = $3,
+                photo_path = $4
+            WHERE id = $5
+            `,
+            [
+              name,
+              title,
+              message,
+              newPath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE founders
+            SET name = $1,
+                title = $2,
+                message = $3
+            WHERE id = $4
+            `,
+            [
+              name,
+              title,
+              message,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const orderResult = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM founders'
+        );
+
+        const maxOrder =
+          Number(orderResult.rows[0].max_order) || 0;
+
+        const photoPath = req.file
+          ? req.file.publicUrl
+          : null;
+
+        await db.query(
+          `
+          INSERT INTO founders
+          (name, title, message, photo_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            name,
+            title,
+            message,
+            photoPath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save founder error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/founders/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT photo_path FROM founders WHERE id = $1',
+        [req.params.id]
+      );
+
+      const founder = result.rows[0];
+
+      if (founder && founder.photo_path) {
+        await deleteFromSupabase(founder.photo_path);
+      }
+
+      await db.query(
+        'DELETE FROM founders WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete founder error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// SITE LOGO
+// ============================================================
+
+router.post(
+  '/branding/save',
+  requireLogin,
+  upload.single('logo'),
+uploadToSupabase,
+async (req, res) => {
+    try {
+
+      if (req.file) {
+
+        const result = await db.query(
+          "SELECT value FROM settings WHERE key = 'site_logo'"
+        );
+
+        const old = result.rows[0];
+
+        if (old && old.value) {
+          await deleteFromSupabase(old.value);
+        }
+
+        const newPath = req.file.publicUrl;
+
+        await db.query(
+          `
+          INSERT INTO settings (key, value)
+          VALUES ('site_logo', $1)
+          ON CONFLICT(key)
+          DO UPDATE SET value = EXCLUDED.value
+          `,
+          [newPath]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Branding error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// SLIDES
+// ============================================================
+
+router.get('/slides/new', requireLogin, (req, res) => {
+  res.render('admin/slide-form.ejs', {
+    slide: null,
+    layout: false
+  });
 });
 
-router.post('/team/:id/delete', requireLogin, (req, res) => {
-  const member = db.prepare('SELECT photo_path FROM team_members WHERE id = ?').get(req.params.id);
-  if (member && member.photo_path) {
-    fs.unlink(path.join(__dirname, '..', 'public', member.photo_path), () => {});
+
+router.get(
+  '/slides/:id/edit',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM slides WHERE id = $1',
+        [req.params.id]
+      );
+
+      const slide = result.rows[0];
+
+      if (!slide) {
+        return res.redirect('/admin');
+      }
+
+      res.render('admin/slide-form.ejs', {
+        slide,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit slide error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
   }
-  db.prepare('DELETE FROM team_members WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
+);
+
+
+router.post(
+  '/slides/save',
+  requireLogin,
+  upload.single('image'),
+uploadToSupabase,
+async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        caption,
+        eyebrow,
+        subtitle
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT image_path FROM slides WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.image_path) {
+            await deleteFromSupabase(existing.image_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE slides
+            SET image_path = $1,
+                caption = $2,
+                eyebrow = $3,
+                subtitle = $4
+            WHERE id = $5
+            `,
+            [
+              newPath,
+              caption,
+              eyebrow,
+              subtitle,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE slides
+            SET caption = $1,
+                eyebrow = $2,
+                subtitle = $3
+            WHERE id = $4
+            `,
+            [
+              caption,
+              eyebrow,
+              subtitle,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        if (!req.file) {
+          return res.status(400).send(
+            'An image is required for a new slide.'
+          );
+        }
+
+        const orderResult = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM slides'
+        );
+
+        const maxOrder =
+          Number(orderResult.rows[0].max_order) || 0;
+
+        const newPath = req.file.publicUrl;
+        await db.query(
+          `
+          INSERT INTO slides
+          (image_path, caption, eyebrow, subtitle, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            newPath,
+            caption,
+            eyebrow,
+            subtitle,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save slide error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/slides/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT image_path FROM slides WHERE id = $1',
+        [req.params.id]
+      );
+
+      const slide = result.rows[0];
+
+      if (slide && slide.image_path) {
+        await deleteFromSupabase(slide.image_path);
+      }
+
+      await db.query(
+        'DELETE FROM slides WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete slide error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// STATS
+// ============================================================
+
+router.post(
+  '/stats/save',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const { id, value, label } = req.body;
+
+      if (id) {
+
+        await db.query(
+          `
+          UPDATE stats
+          SET value = $1,
+              label = $2
+          WHERE id = $3
+          `,
+          [value, label, id]
+        );
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM stats'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        await db.query(
+          `
+          INSERT INTO stats
+          (value, label, sort_order)
+          VALUES ($1, $2, $3)
+          `,
+          [
+            value,
+            label,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Stats error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/stats/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      await db.query(
+        'DELETE FROM stats WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete stats error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// INDUSTRIES
+// ============================================================
+
+router.get('/industries/new', requireLogin, (req, res) => {
+  res.render('admin/industry-form.ejs', {
+    industry: null,
+    layout: false
+  });
 });
 
-// --- Partners (funders/collaborators logo strip) ---
+
+router.get(
+  '/industries/:id/edit',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM industries WHERE id = $1',
+        [req.params.id]
+      );
+
+      const industry = result.rows[0];
+
+      if (!industry) {
+        return res.redirect('/admin');
+      }
+
+      res.render('admin/industry-form.ejs', {
+        industry,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit industry error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/industries/save',
+  requireLogin,
+ upload.single('image'),
+uploadToSupabase,
+async (req, res) => {
+    try {
+
+      const {
+        id,
+        title,
+        icon,
+        description
+      } = req.body;
+
+      const imagePath = req.file
+  ? req.file.publicUrl
+  : null;
+
+      if (id) {
+
+        if (imagePath) {
+
+          const result = await db.query(
+            'SELECT image_path FROM industries WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.image_path) {
+            await deleteFromSupabase(existing.image_path);
+          }
+
+          await db.query(
+            `
+            UPDATE industries
+            SET title = $1,
+                icon = $2,
+                description = $3,
+                image_path = $4
+            WHERE id = $5
+            `,
+            [
+              title,
+              icon,
+              description,
+              imagePath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE industries
+            SET title = $1,
+                icon = $2,
+                description = $3
+            WHERE id = $4
+            `,
+            [
+              title,
+              icon,
+              description,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM industries'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        await db.query(
+          `
+          INSERT INTO industries
+          (title, icon, description, image_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            title,
+            icon,
+            description,
+            imagePath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save industry error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/industries/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT image_path FROM industries WHERE id = $1',
+        [req.params.id]
+      );
+
+      const industry = result.rows[0];
+
+      if (industry && industry.image_path) {
+        await deleteFromSupabase(industry.image_path);
+      }
+
+      await db.query(
+        'DELETE FROM industries WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete industry error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// CASE STUDIES
+// ============================================================
+
+router.get('/case-studies/new', requireLogin, (req, res) => {
+  res.render('admin/case-study-form.ejs', {
+    caseStudy: null,
+    layout: false
+  });
+});
+
+
+router.get(
+  '/case-studies/:id/edit',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM case_studies WHERE id = $1',
+        [req.params.id]
+      );
+
+      const caseStudy = result.rows[0];
+
+      if (!caseStudy) {
+        return res.redirect('/admin');
+      }
+
+      res.render('admin/case-study-form.ejs', {
+        caseStudy,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit case study error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/case-studies/save',
+  requireLogin,
+  upload.single('image'),
+  uploadToSupabase,
+  async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        title,
+        client,
+        summary
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT image_path FROM case_studies WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.image_path) {
+            await deleteFromSupabase(existing.image_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE case_studies
+            SET title = $1,
+                client = $2,
+                summary = $3,
+                image_path = $4
+            WHERE id = $5
+            `,
+            [
+              title,
+              client,
+              summary,
+              newPath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE case_studies
+            SET title = $1,
+                client = $2,
+                summary = $3
+            WHERE id = $4
+            `,
+            [
+              title,
+              client,
+              summary,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM case_studies'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        const imagePath = req.file
+          ? req.file.publicUrl
+          : null;
+
+        await db.query(
+          `
+          INSERT INTO case_studies
+          (title, client, summary, image_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            title,
+            client,
+            summary,
+            imagePath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save case study error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/case-studies/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT image_path FROM case_studies WHERE id = $1',
+        [req.params.id]
+      );
+
+      const caseStudy = result.rows[0];
+
+      if (caseStudy && caseStudy.image_path) {
+        await deleteFromSupabase(caseStudy.image_path);
+      }
+
+      await db.query(
+        'DELETE FROM case_studies WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete case study error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// TEAM MEMBERS
+// ============================================================
+
+router.get('/team/new', requireLogin, (req, res) => {
+
+  res.render(
+    'admin/team-form.ejs',
+    {
+      member: null,
+      layout: false
+    },
+    (err, html) => {
+
+      if (err) {
+
+        console.error('>>> RENDER ERROR:', err);
+
+        return res.status(500).send(
+          '<pre>' + err.stack + '</pre>'
+        );
+      }
+
+      console.log(
+        '>>> Rendered HTML length:',
+        html.length
+      );
+
+      res.send(html);
+    }
+  );
+});
+
+
+router.get(
+  '/team/:id/edit',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM team_members WHERE id = $1',
+        [req.params.id]
+      );
+
+      const member = result.rows[0];
+
+      if (!member) {
+        return res.redirect('/admin');
+      }
+
+      res.render(
+        'admin/team-form.ejs',
+        {
+          member,
+          layout: false
+        }
+      );
+
+    } catch (error) {
+
+      console.error('Edit team member error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/team/save',
+  requireLogin,
+  upload.single('photo'),
+  uploadToSupabase,
+  async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        name,
+        role,
+        bio
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT photo_path FROM team_members WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.photo_path) {
+            await deleteFromSupabase(existing.photo_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE team_members
+            SET name = $1,
+                role = $2,
+                bio = $3,
+                photo_path = $4
+            WHERE id = $5
+            `,
+            [
+              name,
+              role,
+              bio,
+              newPath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE team_members
+            SET name = $1,
+                role = $2,
+                bio = $3
+            WHERE id = $4
+            `,
+            [
+              name,
+              role,
+              bio,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM team_members'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        const photoPath = req.file
+          ? req.file.publicUrl
+          : null;
+
+        await db.query(
+          `
+          INSERT INTO team_members
+          (name, role, bio, photo_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            name,
+            role,
+            bio,
+            photoPath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save team member error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/team/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT photo_path FROM team_members WHERE id = $1',
+        [req.params.id]
+      );
+
+      const member = result.rows[0];
+
+      if (member && member.photo_path) {
+        await deleteFromSupabase(member.photo_path);
+      }
+
+      await db.query(
+        'DELETE FROM team_members WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete team member error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// PARTNERS
+// ============================================================
 
 router.get('/partners/new', requireLogin, (req, res) => {
-  res.render('admin/partner-form', { partner: null, layout: false });
+  res.render('admin/partner-form.ejs', {
+    partner: null,
+    layout: false
+  });
 });
 
-router.get('/partners/:id/edit', requireLogin, (req, res) => {
-  const partner = db.prepare('SELECT * FROM partners WHERE id = ?').get(req.params.id);
-  if (!partner) return res.redirect('/admin');
-  res.render('admin/partner-form', { partner, layout: false });
-});
 
-router.post('/partners/save', requireLogin, upload.single('logo'), (req, res) => {
-  const { id, name, website_url } = req.body;
+router.get(
+  '/partners/:id/edit',
+  requireLogin,
+  async (req, res) => {
 
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT logo_path FROM partners WHERE id = ?').get(id);
-      if (existing && existing.logo_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.logo_path), () => {});
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM partners WHERE id = $1',
+        [req.params.id]
+      );
+
+      const partner = result.rows[0];
+
+      if (!partner) {
+        return res.redirect('/admin');
       }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE partners SET name = ?, website_url = ?, logo_path = ? WHERE id = ?')
-        .run(name, website_url, newPath, id);
-    } else {
-      db.prepare('UPDATE partners SET name = ?, website_url = ? WHERE id = ?')
-        .run(name, website_url, id);
+
+      res.render('admin/partner-form.ejs', {
+        partner,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit partner error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
     }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM partners').get().m || 0;
-    const logoPath = req.file ? '/uploads/' + req.file.filename : null;
-    db.prepare('INSERT INTO partners (name, website_url, logo_path, sort_order) VALUES (?, ?, ?, ?)')
-      .run(name, website_url, logoPath, maxOrder + 1);
   }
+);
 
-  res.redirect('/admin');
-});
 
-router.post('/partners/:id/delete', requireLogin, (req, res) => {
-  const partner = db.prepare('SELECT logo_path FROM partners WHERE id = ?').get(req.params.id);
-  if (partner && partner.logo_path) {
-    fs.unlink(path.join(__dirname, '..', 'public', partner.logo_path), () => {});
+router.post(
+  '/partners/save',
+  requireLogin,
+  upload.single('logo'),
+  uploadToSupabase,
+  async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        name,
+        website_url
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT logo_path FROM partners WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.logo_path) {
+            await deleteFromSupabase(existing.logo_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE partners
+            SET name = $1,
+                website_url = $2,
+                logo_path = $3
+            WHERE id = $4
+            `,
+            [
+              name,
+              website_url,
+              newPath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE partners
+            SET name = $1,
+                website_url = $2
+            WHERE id = $3
+            `,
+            [
+              name,
+              website_url,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM partners'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        const logoPath = req.file
+          ? req.file.publicUrl
+          : null;
+
+        await db.query(
+          `
+          INSERT INTO partners
+          (name, website_url, logo_path, sort_order)
+          VALUES ($1, $2, $3, $4)
+          `,
+          [
+            name,
+            website_url,
+            logoPath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save partner error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
   }
-  db.prepare('DELETE FROM partners WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
+);
 
-// --- Software & Equipment products ---
+
+router.post(
+  '/partners/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      const result = await db.query(
+        'SELECT logo_path FROM partners WHERE id = $1',
+        [req.params.id]
+      );
+
+      const partner = result.rows[0];
+
+      if (partner && partner.logo_path) {
+        await deleteFromSupabase(partner.logo_path);
+      }
+
+      await db.query(
+        'DELETE FROM partners WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete partner error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// PRODUCTS
+// ============================================================
 
 router.get('/products/new', requireLogin, (req, res) => {
-  res.render('admin/product-form', { product: null, layout: false });
+  res.render('admin/product-form.ejs', {
+    product: null,
+    layout: false
+  });
 });
 
-router.get('/products/:id/edit', requireLogin, (req, res) => {
-  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-  if (!product) return res.redirect('/admin');
-  res.render('admin/product-form', { product, layout: false });
-});
 
-router.post('/products/save', requireLogin, upload.single('image'), (req, res) => {
-  const { id, name, description, price_info } = req.body;
+router.get(
+  '/products/:id/edit',
+  requireLogin,
+  async (req, res) => {
 
-  if (id) {
-    if (req.file) {
-      const existing = db.prepare('SELECT image_path FROM products WHERE id = ?').get(id);
-      if (existing && existing.image_path) {
-        fs.unlink(path.join(__dirname, '..', 'public', existing.image_path), () => {});
+    try {
+
+      const result = await db.query(
+        'SELECT * FROM products WHERE id = $1',
+        [req.params.id]
+      );
+
+      const product = result.rows[0];
+
+      if (!product) {
+        return res.redirect('/admin');
       }
-      const newPath = '/uploads/' + req.file.filename;
-      db.prepare('UPDATE products SET name = ?, description = ?, price_info = ?, image_path = ? WHERE id = ?')
-        .run(name, description, price_info, newPath, id);
-    } else {
-      db.prepare('UPDATE products SET name = ?, description = ?, price_info = ? WHERE id = ?')
-        .run(name, description, price_info, id);
+
+      res.render('admin/product-form.ejs', {
+        product,
+        layout: false
+      });
+
+    } catch (error) {
+
+      console.error('Edit product error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
     }
-  } else {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) AS m FROM products').get().m || 0;
-    const imagePath = req.file ? '/uploads/' + req.file.filename : null;
-    db.prepare('INSERT INTO products (name, description, price_info, image_path, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(name, description, price_info, imagePath, maxOrder + 1);
   }
+);
 
-  res.redirect('/admin');
-});
 
-router.post('/products/:id/delete', requireLogin, (req, res) => {
-  const product = db.prepare('SELECT image_path FROM products WHERE id = ?').get(req.params.id);
-  if (product && product.image_path) {
-    fs.unlink(path.join(__dirname, '..', 'public', product.image_path), () => {});
+router.post(
+  '/products/save',
+  requireLogin,
+  upload.single('image'),
+  uploadToSupabase,
+  async (req, res) => {
+
+    try {
+
+      const {
+        id,
+        name,
+        description,
+        price_info
+      } = req.body;
+
+      if (id) {
+
+        if (req.file) {
+
+          const result = await db.query(
+            'SELECT image_path FROM products WHERE id = $1',
+            [id]
+          );
+
+          const existing = result.rows[0];
+
+          if (existing && existing.image_path) {
+            await deleteFromSupabase(existing.image_path);
+          }
+
+          const newPath = req.file.publicUrl;
+
+          await db.query(
+            `
+            UPDATE products
+            SET name = $1,
+                description = $2,
+                price_info = $3,
+                image_path = $4
+            WHERE id = $5
+            `,
+            [
+              name,
+              description,
+              price_info,
+              newPath,
+              id
+            ]
+          );
+
+        } else {
+
+          await db.query(
+            `
+            UPDATE products
+            SET name = $1,
+                description = $2,
+                price_info = $3
+            WHERE id = $4
+            `,
+            [
+              name,
+              description,
+              price_info,
+              id
+            ]
+          );
+        }
+
+      } else {
+
+        const result = await db.query(
+          'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM products'
+        );
+
+        const maxOrder =
+          Number(result.rows[0].max_order) || 0;
+
+        const imagePath = req.file
+          ? req.file.publicUrl
+          : null;
+
+        await db.query(
+          `
+          INSERT INTO products
+          (name, description, price_info, image_path, sort_order)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            name,
+            description,
+            price_info,
+            imagePath,
+            maxOrder + 1
+          ]
+        );
+      }
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Save product error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
   }
-  db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
+);
 
-// --- Requests inbox (service bookings + product buy/hire requests) ---
 
-router.post('/requests/:id/handled', requireLogin, (req, res) => {
-  db.prepare("UPDATE requests SET status = 'handled' WHERE id = ?").run(req.params.id);
-  res.redirect('/admin');
-});
+router.post(
+  '/products/:id/delete',
+  requireLogin,
+  async (req, res) => {
 
-router.post('/requests/:id/delete', requireLogin, (req, res) => {
-  db.prepare('DELETE FROM requests WHERE id = ?').run(req.params.id);
-  res.redirect('/admin');
-});
+    try {
+
+      const result = await db.query(
+        'SELECT image_path FROM products WHERE id = $1',
+        [req.params.id]
+      );
+
+      const product = result.rows[0];
+
+      if (product && product.image_path) {
+        await deleteFromSupabase(product.image_path);
+      }
+
+      await db.query(
+        'DELETE FROM products WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete product error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// REQUESTS INBOX
+// ============================================================
+
+router.post(
+  '/requests/:id/handled',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      await db.query(
+        `
+        UPDATE requests
+        SET status = 'handled'
+        WHERE id = $1
+        `,
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Handle request error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+router.post(
+  '/requests/:id/delete',
+  requireLogin,
+  async (req, res) => {
+
+    try {
+
+      await db.query(
+        'DELETE FROM requests WHERE id = $1',
+        [req.params.id]
+      );
+
+      res.redirect('/admin');
+
+    } catch (error) {
+
+      console.error('Delete request error:', error);
+
+      res.status(500).send(
+        '<pre>' + error.stack + '</pre>'
+      );
+    }
+  }
+);
+
+
+// ============================================================
+// EXPORT ROUTER
+// ============================================================
 
 module.exports = router;

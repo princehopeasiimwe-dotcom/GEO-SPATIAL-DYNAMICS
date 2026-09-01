@@ -1,79 +1,166 @@
 require('dotenv').config();
+
 const express = require('express');
 const session = require('express-session');
 const expressLayouts = require('express-ejs-layouts');
 const path = require('path');
 
-const { initDb } = require('./db/init');
 const publicRoutes = require('./routes/public');
 const adminRoutes = require('./routes/admin');
 
+// IMPORTANT:
+// This is the NEW database connection.
+// It must export `db` using PostgreSQL/Supabase.
+const  db  = require('./db');
+
+// ------------------------------------------------------------
+// APP
+// ------------------------------------------------------------
+
 const app = express();
 
-// Creates the SQLite file and tables on first run, and seeds starter content.
-// Safe to call every time the server starts - it only creates what's missing.
-initDb();
+// ------------------------------------------------------------
+// VIEW ENGINE
+// ------------------------------------------------------------
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Every page rendered with res.render('pages/xxx') gets automatically wrapped
-// in views/layouts/main.ejs, with that page's content injected at <%- body %>.
-// Admin routes render full standalone .ejs files and opt out (see routes/admin.js).
 app.use(expressLayouts);
 app.set('layout', 'layouts/main');
 
-app.use(express.urlencoded({ extended: true })); // parses <form> submissions
-app.use(express.static(path.join(__dirname, 'public'))); // serves css/js/images
+// ------------------------------------------------------------
+// MIDDLEWARE
+// ------------------------------------------------------------
 
-// Makes the service list available in EVERY rendered page (via res.locals),
-// so the navbar's "Services" dropdown works no matter which route rendered
-// the current page - without every route needing to fetch it manually.
-const { db } = require('./db/init');
-app.use((req, res, next) => {
-  res.locals.navServices = db.prepare('SELECT title, slug FROM services ORDER BY sort_order').all();
-  next();
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Static files: CSS, JavaScript, images, uploads, etc.
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ------------------------------------------------------------
+// SESSION
+// ------------------------------------------------------------
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'change-this-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 4, // 4 hours
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production'
+    }
+  })
+);
+
+// ------------------------------------------------------------
+// NAVIGATION DATA
+// ------------------------------------------------------------
+// Makes the service list available to every EJS page.
+
+app.use(async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'SELECT title, slug FROM services ORDER BY sort_order'
+    );
+
+    res.locals.navServices = result.rows;
+    next();
+  } catch (error) {
+    console.error('Navigation database error:', error.message);
+
+    // Don't completely break the website if the navigation query fails.
+    res.locals.navServices = [];
+    next();
+  }
 });
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'change-this-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 4 } // admin stays logged in for 4 hours
-}));
+// ------------------------------------------------------------
+// PUBLIC ROUTES
+// ------------------------------------------------------------
 
 app.use('/', publicRoutes);
 
-// Admin pages should never be cached by the browser - stale cached admin
-// pages (like an old blank/error response from a since-fixed bug) can
-// otherwise keep reappearing indefinitely even after the server is fixed.
+// ------------------------------------------------------------
+// ADMIN CACHE CONTROL
+// ------------------------------------------------------------
+// Prevent browsers from showing stale admin pages.
+
 app.use('/admin', (req, res, next) => {
-  res.set('Cache-Control', 'no-store');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   next();
 });
+
+// ------------------------------------------------------------
+// ADMIN ROUTES
+// ------------------------------------------------------------
+
 app.use('/admin', adminRoutes);
 
-// Catch-all 404: anything that didn't match a route above (public or admin)
-// falls through to here instead of Express's default plain-text response.
-app.use((req, res) => {
-  const settingRows = db.prepare('SELECT key, value FROM settings').all();
-  const settings = {};
-  settingRows.forEach(r => { settings[r.key] = r.value; });
-  res.status(404).render('pages/404', { page: '', settings });
+// ------------------------------------------------------------
+// 404 PAGE
+// ------------------------------------------------------------
+
+app.use(async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT key, value FROM settings'
+    );
+
+    const settings = {};
+
+    result.rows.forEach(row => {
+      settings[row.key] = row.value;
+    });
+
+    res.status(404).render('pages/404', {
+      page: '',
+      settings
+    });
+  } catch (error) {
+    console.error('404 page error:', error);
+
+    res.status(404).send('Page not found');
+  }
 });
+
+// ------------------------------------------------------------
+// ERROR HANDLER
+// ------------------------------------------------------------
+
+app.use((err, req, res, next) => {
+  console.error('========================================');
+  console.error('UNHANDLED SERVER ERROR');
+  console.error('========================================');
+  console.error(err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(500).send(
+    '<pre style="white-space:pre-wrap;font-family:monospace;padding:20px;">' +
+      (err && err.stack ? err.stack : String(err)) +
+    '</pre>'
+  );
+});
+
+// ------------------------------------------------------------
+// SERVER
+// ------------------------------------------------------------
 
 const PORT = process.env.PORT || 3000;
-// Catch-all error handler: if any route throws (including a rendering
-// error inside an .ejs file), this shows the real error on-screen instead
-// of a mysterious blank page, and always logs it to the terminal too.
-app.use((err, req, res, next) => {
-  console.error('--- UNHANDLED ERROR ---');
-  console.error(err);
-  res.status(500).send('<pre style="white-space:pre-wrap; font-family:monospace; padding:20px;">' +
-    (err && err.stack ? err.stack : String(err)) + '</pre>');
-});
 
-app.listen(PORT, () => {
-  console.log(`GDL server running on port ${PORT}`);
-  console.log(`Admin panel at ${PORT}/admin`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('========================================');
+  console.log('GDL SERVER STARTED');
+  console.log('========================================');
+  console.log(`Port: ${PORT}`);
+  console.log(`Admin: /admin`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
