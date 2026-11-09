@@ -6,6 +6,7 @@ const expressLayouts = require('express-ejs-layouts');
 const path = require('path');
 
 const publicRoutes = require('./routes/public');
+const { seoMiddleware, robots, sitemap } = require('./seo');
 const adminRoutes = require('./routes/admin');
 
 // IMPORTANT:
@@ -38,6 +39,11 @@ app.set('layout', 'layouts/main');
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// SEO: robots.txt, sitemap.xml and per-page meta tags
+app.get('/robots.txt', robots);
+app.get('/sitemap.xml', sitemap);
+app.use(seoMiddleware);
 
 // Static files: CSS, JavaScript, images, uploads, etc.
 app.use(express.static(path.join(__dirname, 'public')));
