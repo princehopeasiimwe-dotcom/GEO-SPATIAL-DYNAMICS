@@ -3,7 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geospatial Dynamics Limited</title>
+<title><%= seo.title %></title>
+<meta name="description" content="<%= seo.description %>">
+<meta name="keywords" content="geo spatial dynamics, geospatial dynamics limited, GDL Uganda, GIS Uganda, remote sensing Uganda, GIS services Kampala, mapping, GPS, environmental impact assessment Uganda">
+<meta name="robots" content="<%= seo.noindex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large' %>">
+<link rel="canonical" href="<%= seo.canonical %>">
+<% if (seo.verification) { %><meta name="google-site-verification" content="<%= seo.verification %>"><% } %>
+<link rel="icon" href="<%= (typeof settings !== 'undefined' && settings.site_logo) ? settings.site_logo : '/uploads/logo.png' %>">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="<%= seo.siteName %>">
+<meta property="og:title" content="<%= seo.title %>">
+<meta property="og:description" content="<%= seo.description %>">
+<meta property="og:url" content="<%= seo.canonical %>">
+<meta property="og:image" content="<%= seo.baseUrl %><%= (typeof settings !== 'undefined' && settings.site_logo) ? settings.site_logo : '/uploads/logo.png' %>">
+<meta name="twitter:card" content="summary">
+<% if (!seo.noindex) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Geospatial Dynamics Limited",
+  "alternateName": ["GDL", "Geo Spatial Dynamics", "Geospatial Dynamics"],
+  "url": seo.baseUrl + "/",
+  "logo": seo.baseUrl + ((typeof settings !== 'undefined' && settings.site_logo) ? settings.site_logo : '/uploads/logo.png'),
+  "description": seo.description,
+  "email": (typeof settings !== 'undefined' && settings.contact_email) || undefined,
+  "telephone": (typeof settings !== 'undefined' && settings.contact_phone) || undefined,
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Plot No. 933, Kireka-Namugongo Road",
+    "addressLocality": "Kampala",
+    "addressCountry": "UG"
+  }
+}).replace(/</g, '\\u003c') %>
+</script>
+<% } %>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/CSS/Style.CSS">
